@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Échanges de compétences</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'polls/style.css' %}">
+</head>
+<body>
+    <main>
+        <h1>Échanges de compétences</h1>
+
+        <section>
+            <h2>Prochains créneaux d'entraide</h2>
+            {% if upcoming_help_slots %}
+                <ul>
+                    {% for slot in upcoming_help_slots %}
+                        <li>
+                            {{ slot.starts_at|date:"l j F Y à H:i" }} :
+                            {{ slot.skill__name }} pour {{ slot.activity }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Aucun créneau d'entraide à venir.</p>
+            {% endif %}
+        </section>
+
+        <section>
+            <h2>Compétences proposées aux échanges</h2>
+            {% if skills %}
+                <ul>
+                    {% for skill in skills %}
+                        <li>{{ skill.name }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Le catalogue de compétences est vide pour le moment.</p>
+            {% endif %}
+        </section>
+
+        {% if user.is_authenticated %}
+            <p><a href="{% url 'polls:offer_skills' %}">Gérer mes compétences proposées</a></p>
+        {% else %}
+            <p><a href="{% url 'login' %}">Se connecter</a> pour indiquer vos compétences.</p>
+        {% endif %}
+    </main>
+</body>
+</html>
