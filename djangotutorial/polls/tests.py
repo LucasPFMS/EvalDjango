@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 import datetime
 
-from .models import HelpSlot, Skill
+from .models import HelpRequest, HelpSlot, Skill
 
 
 class PublicIndexTests(TestCase):
@@ -64,3 +64,77 @@ class OfferedSkillsTests(TestCase):
             self.user.offered_skills.all(),
             [self.skill],
         )
+
+
+class HelpRequestTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="requester")
+        self.owned_skill = Skill.objects.create(name="Cuisine")
+        self.missing_skill = Skill.objects.create(name="Bricolage")
+        self.user.offered_skills.add(self.owned_skill)
+        self.client.force_login(self.user)
+
+    def test_anonymous_user_is_redirected_to_login(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("polls:create_help_request"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('polls:create_help_request')}",
+        )
+
+    def test_user_can_request_a_future_slot_for_a_missing_skill(self):
+        response = self.client.get(reverse("polls:create_help_request"))
+
+        self.assertContains(response, "Bricolage")
+        self.assertNotContains(response, "Cuisine")
+
+        starts_at = (timezone.now() + datetime.timedelta(days=1)).replace(
+            second=0,
+            microsecond=0,
+        )
+        response = self.client.post(
+            reverse("polls:create_help_request"),
+            {
+                "activity": "Monter une étagère dans le salon",
+                "skill": self.missing_skill.pk,
+                "starts_at": starts_at.strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertRedirects(response, reverse("polls:create_help_request"))
+        help_request = HelpRequest.objects.get()
+        self.assertEqual(help_request.requester, self.user)
+        self.assertEqual(help_request.skill, self.missing_skill)
+        self.assertEqual(help_request.activity, "Monter une étagère dans le salon")
+
+    def test_user_cannot_request_a_skill_they_offer(self):
+        response = self.client.post(
+            reverse("polls:create_help_request"),
+            {
+                "activity": "Préparer un repas",
+                "skill": self.owned_skill.pk,
+                "starts_at": (
+                    timezone.now() + datetime.timedelta(days=1)
+                ).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(HelpRequest.objects.count(), 0)
+
+    def test_user_cannot_request_a_past_slot(self):
+        response = self.client.post(
+            reverse("polls:create_help_request"),
+            {
+                "activity": "Monter une étagère",
+                "skill": self.missing_skill.pk,
+                "starts_at": (
+                    timezone.now() - datetime.timedelta(days=1)
+                ).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(HelpRequest.objects.count(), 0)

@@ -77,3 +77,20 @@ class HelpSlot(models.Model):
 
     def __str__(self):
         return f"{self.skill} - {self.starts_at:%d/%m/%Y %H:%M}"
+
+
+class HelpRequest(models.Model):
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="help_requests",
+    )
+    skill = models.ForeignKey(Skill, on_delete=models.PROTECT)
+    activity = models.TextField()
+    starts_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["starts_at"]
+
+    def __str__(self):
+        return f"{self.skill} - {self.starts_at:%d/%m/%Y %H:%M}"

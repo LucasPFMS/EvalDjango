@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demander de l'aide</title>
+</head>
+<body>
+    <main>
+        <h1>Demander de l'aide</h1>
+        <p>Décrivez l'activité, choisissez une compétence que vous ne possédez pas et indiquez un créneau futur.</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Enregistrer le créneau</button>
+        </form>
+
+        <section>
+            <h2>Mes prochains créneaux</h2>
+            {% if help_requests %}
+                <ul>
+                    {% for help_request in help_requests %}
+                        <li>
+                            {{ help_request.starts_at|date:"l j F Y à H:i" }} :
+                            {{ help_request.activity }} ({{ help_request.skill }})
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Vous n'avez pas de demande d'aide à venir.</p>
+            {% endif %}
+        </section>
+
+        <p><a href="{% url 'home' %}">Retour à l'accueil</a></p>
+    </main>
+</body>
+</html>

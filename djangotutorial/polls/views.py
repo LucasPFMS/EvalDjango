@@ -7,8 +7,8 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views import generic
-from .forms import OfferSkillsForm, QuestionAddForm
-from .models import Choice, HelpSlot, Question, Skill
+from .forms import HelpRequestForm, OfferSkillsForm, QuestionAddForm
+from .models import Choice, HelpRequest, HelpSlot, Question, Skill
 from .utils import minimax
 
 
@@ -34,6 +34,26 @@ def offer_skills(request):
         )
 
     return render(request, "polls/offer_skills.html", {"form": form})
+
+
+@login_required
+def create_help_request(request):
+    if request.method == "POST":
+        form = HelpRequestForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            return redirect("polls:create_help_request")
+    else:
+        form = HelpRequestForm(user=request.user)
+
+    help_requests = HelpRequest.objects.filter(
+        requester=request.user,
+        starts_at__gte=timezone.now(),
+    ).select_related("skill")
+    return render(request, "polls/help_request.html", {
+        "form": form,
+        "help_requests": help_requests,
+    })
 
 
 class IndexView(generic.ListView):
