@@ -43,6 +43,7 @@
         {% if user.is_authenticated %}
             <p><a href="{% url 'polls:offer_skills' %}">Gérer mes compétences proposées</a></p>
             <p><a href="{% url 'polls:create_help_request' %}">Indiquer un créneau où je cherche de l'aide</a></p>
+            <p><a href="{% url 'polls:available_help_requests' %}">Voir les demandes auxquelles je peux répondre</a></p>
         {% else %}
             <p><a href="{% url 'login' %}">Se connecter</a> pour indiquer vos compétences.</p>
         {% endif %}

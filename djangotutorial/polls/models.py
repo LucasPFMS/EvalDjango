@@ -88,6 +88,13 @@ class HelpRequest(models.Model):
     skill = models.ForeignKey(Skill, on_delete=models.PROTECT)
     activity = models.TextField()
     starts_at = models.DateTimeField()
+    claimed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="help_requests_claimed",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["starts_at"]

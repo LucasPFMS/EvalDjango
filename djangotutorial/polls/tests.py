@@ -138,3 +138,113 @@ class HelpRequestTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(HelpRequest.objects.count(), 0)
+
+
+class AvailableHelpRequestTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.requester = user_model.objects.create_user(username="requester")
+        self.skilled_requester = user_model.objects.create_user(
+            username="skilled-requester"
+        )
+        self.helper = user_model.objects.create_user(username="helper")
+        self.other_helper = user_model.objects.create_user(
+            username="other-helper"
+        )
+        self.skill = Skill.objects.create(name="Bricolage")
+        self.other_skill = Skill.objects.create(name="Cuisine")
+        self.skill.offered_by.add(self.helper, self.other_helper)
+        self.client.force_login(self.helper)
+
+    def make_request(
+        self,
+        requester=None,
+        skill=None,
+        starts_at=None,
+        claimed_by=None,
+        activity="Demande compatible",
+    ):
+        return HelpRequest.objects.create(
+            requester=requester or self.requester,
+            skill=skill or self.skill,
+            starts_at=starts_at or timezone.now() + datetime.timedelta(days=1),
+            claimed_by=claimed_by,
+            activity=activity,
+        )
+
+    def test_only_future_unclaimed_compatible_requests_are_listed(self):
+        self.make_request(activity="À afficher")
+        self.make_request(
+            skill=self.other_skill,
+            activity="Mauvaise compétence",
+        )
+        self.make_request(
+            requester=self.helper,
+            activity="Ma propre demande",
+        )
+        self.make_request(
+            starts_at=timezone.now() - datetime.timedelta(days=1),
+            activity="Demande passée",
+        )
+        self.make_request(
+            claimed_by=self.other_helper,
+            activity="Déjà prise",
+        )
+        self.skilled_requester.offered_skills.add(self.skill)
+        self.make_request(
+            requester=self.skilled_requester,
+            activity="Demandeur possède déjà la compétence",
+        )
+
+        response = self.client.get(reverse("polls:available_help_requests"))
+
+        self.assertContains(response, "À afficher")
+        self.assertNotContains(response, "Mauvaise compétence")
+        self.assertNotContains(response, "Ma propre demande")
+        self.assertNotContains(response, "Demande passée")
+        self.assertNotContains(response, "Déjà prise")
+        self.assertNotContains(response, "Demandeur possède déjà la compétence")
+        self.assertNotContains(response, "requester")
+
+    def test_claimed_request_disappears_for_all_other_helpers(self):
+        help_request = self.make_request()
+
+        response = self.client.post(
+            reverse("polls:offer_help", args=[help_request.pk]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("polls:available_help_requests"))
+        help_request.refresh_from_db()
+        self.assertEqual(help_request.claimed_by, self.helper)
+        public_response = self.client.get(reverse("home"))
+        self.assertContains(public_response, "Demande compatible")
+        self.assertNotContains(public_response, "requester")
+        self.assertNotContains(public_response, "helper")
+        self.assertContains(
+            self.client.get(reverse("polls:available_help_requests")),
+            "Aucune demande à venir",
+        )
+
+        self.client.force_login(self.other_helper)
+        self.assertContains(
+            self.client.get(reverse("polls:available_help_requests")),
+            "Aucune demande à venir",
+        )
+        response = self.client.post(
+            reverse("polls:offer_help", args=[help_request.pk]),
+            follow=True,
+        )
+        help_request.refresh_from_db()
+        self.assertEqual(help_request.claimed_by, self.helper)
+        self.assertContains(response, "Ce créneau")
+
+    def test_anonymous_user_cannot_view_compatible_requests(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("polls:available_help_requests"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('polls:available_help_requests')}",
+        )

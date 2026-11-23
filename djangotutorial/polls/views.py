@@ -3,21 +3,31 @@ from django.shortcuts import get_object_or_404, redirect, render
 # Create your views here.
 from django.db.models import F, Sum, Max
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views import generic
+from django.views.decorators.http import require_POST
 from .forms import HelpRequestForm, OfferSkillsForm, QuestionAddForm
 from .models import Choice, HelpRequest, HelpSlot, Question, Skill
 from .utils import minimax
 
 
 def public_index(request):
+    now = timezone.now()
+    existing_slots = HelpSlot.objects.filter(
+        starts_at__gte=now,
+    ).order_by().values("starts_at", "skill__name", "activity")
+    accepted_requests = HelpRequest.objects.filter(
+        starts_at__gte=now,
+        claimed_by__isnull=False,
+    ).order_by().values("starts_at", "skill__name", "activity")
     return render(request, "polls/public_index.html", {
         "skills": Skill.objects.all(),
-        "upcoming_help_slots": HelpSlot.objects.filter(
-            starts_at__gte=timezone.now()
-        ).values("starts_at", "skill__name", "activity"),
+        "upcoming_help_slots": existing_slots.union(accepted_requests).order_by(
+            "starts_at"
+        ),
     })
 
 
@@ -54,6 +64,46 @@ def create_help_request(request):
         "form": form,
         "help_requests": help_requests,
     })
+
+
+@login_required
+def available_help_requests(request):
+    help_requests = HelpRequest.objects.filter(
+        starts_at__gt=timezone.now(),
+        claimed_by__isnull=True,
+        skill__offered_by=request.user,
+    ).exclude(
+        requester=request.user,
+    ).exclude(
+        skill__offered_by=F("requester"),
+    ).select_related("skill")
+    return render(request, "polls/available_help_requests.html", {
+        "help_requests": help_requests,
+    })
+
+
+@login_required
+@require_POST
+def offer_help(request, request_id):
+    claimed_count = HelpRequest.objects.filter(
+        pk=request_id,
+        starts_at__gt=timezone.now(),
+        claimed_by__isnull=True,
+        skill__offered_by=request.user,
+    ).exclude(
+        requester=request.user,
+    ).exclude(
+        skill__offered_by=F("requester"),
+    ).update(claimed_by=request.user)
+
+    if claimed_count:
+        messages.success(request, "Vous êtes disponible pour ce créneau.")
+    else:
+        messages.error(
+            request,
+            "Ce créneau n'est plus disponible ou ne correspond pas à vos compétences.",
+        )
+    return redirect("polls:available_help_requests")
 
 
 class IndexView(generic.ListView):

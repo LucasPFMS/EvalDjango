@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demandes d'aide compatibles</title>
+</head>
+<body>
+    <main>
+        <h1>Demandes d'aide compatibles</h1>
+
+        {% if messages %}
+            <ul>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if help_requests %}
+            <ul>
+                {% for help_request in help_requests %}
+                    <li>
+                        <p>
+                            {{ help_request.starts_at|date:"l j F Y à H:i" }} :
+                            {{ help_request.activity }}
+                            (compétence recherchée : {{ help_request.skill }})
+                        </p>
+                        <form method="post" action="{% url 'polls:offer_help' help_request.pk %}">
+                            {% csrf_token %}
+                            <button type="submit">Me rendre disponible</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Aucune demande à venir ne correspond à vos compétences.</p>
+        {% endif %}
+
+        <p><a href="{% url 'home' %}">Retour à l'accueil</a></p>
+    </main>
+</body>
+</html>
